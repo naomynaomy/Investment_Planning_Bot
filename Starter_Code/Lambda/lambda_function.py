@@ -1,4 +1,4 @@
-### Required Libraries ###
+## Required Libraries 
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 
@@ -123,9 +123,84 @@ def recommend_portfolio(intent_request):
     investment_amount = get_slots(intent_request)["investmentAmount"]
     risk_level = get_slots(intent_request)["riskLevel"]
     source = intent_request["invocationSource"]
+    
+    if source == "DialogCodeHook":
+        # This code performs basic validation on the supplied input slots.
 
-    # YOUR CODE GOES HERE!
+        # Gets all the slots
+        slots = get_slots(intent_request)
 
+        # Validates user's input using the validate_data function
+        validation_result = validate_data(age, investment_amount,)
+
+        # If the data provided by the user is not valid,
+        # the elicitSlot dialog action is used to re-prompt for the first violation detected.
+        if not validation_result["isValid"]:
+            slots[validation_result["violatedSlot"]] = None  # Cleans invalid slot
+
+            # Returns an elicitSlot dialog to request new data for the invalid slot
+            return elicit_slot(
+                intent_request["sessionAttributes"],
+                intent_request["currentIntent"]["name"],
+                slots,
+                validation_result["violatedSlot"],
+                validation_result["message"],
+            )
+
+        # Fetch current session attributes
+        output_session_attributes = intent_request["sessionAttributes"]
+
+        # Once all slots are valid, a delegate dialog is returned to Lex to choose the next course of action.
+        return delegate(output_session_attributes, get_slots(intent_request))
+        
+    recommended_port = portfolio(risk_level)
+
+    # Return a message with conversion's result.
+    return close(
+    intent_request["sessionAttributes"],
+    "Fulfilled",
+    {
+        "contentType": "PlainText",
+        "content": f"The recommended portfolio for your risk-level is: {recommended_port}"
+    },
+)
+
+def portfolio(risk_level):
+    if risk_level == "high":
+        return "20% bonds (AGG), 80% equities (SPY)"        
+    elif risk_level == "low":
+        return "60% bonds (AGG), 40% equities (SPY)"
+    elif risk_level == "medium":
+        return "40% bonds (AGG), 60% equities (SPY)"
+    else:
+        return "100% bonds (AGG), 0% equities (SPY)"
+
+
+
+def validate_data(age, investment_amount):
+    if age is not None:
+        age = parse_int(age)
+        if age <= 0 or age >= 65:
+            return build_validation_result(
+                False,
+                "age",
+                "This service is for people ages 0-64. Please enter another age.",
+                )
+    
+    # Validate the investment amount, it should be > 0
+    
+    if investment_amount is not None:
+        investment_amount = parse_int(investment_amount)  # Since parameters are strings it's important to cast values
+        if investment_amount < 5000:
+            return build_validation_result(
+                False,
+                "investment_Amount",
+                "The amount to convert should be greater than 5000 please provide a correct amount in dollars to convert.",
+            )
+
+    # A True results is returned if age or amount are valid
+    return build_validation_result(True, None, None)
+    
 
 ### Intents Dispatcher ###
 def dispatch(intent_request):
@@ -148,5 +223,4 @@ def lambda_handler(event, context):
     Route the incoming request based on intent.
     The JSON body of the request is provided in the event slot.
     """
-
     return dispatch(event)
